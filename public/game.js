@@ -165,15 +165,21 @@ function handleTouchMove(e) {
 }
 
 function startGame() {
-  if (gameRunning) return;
+  // 1. Сброс перед стартом
+  resetGame();
   
+  // 2. Скрытие меню
   menuScreen.classList.remove('visible');
   gameOverScreen.classList.remove('visible');
   
+  // 3. Инициализация
   initGame().then(() => {
     gameRunning = true;
-    initControls(); // Инициализируем управление
+    initControls();
     gameLoop();
+    
+    // Фокус на canvas для клавиатуры
+    canvas.focus();
   });
 }
 
@@ -250,14 +256,56 @@ function gameLoop() {
 }
 
 function endGame() {
-    gameRunning = false;
-    cancelAnimationFrame(animationFrameId);
-    finalScoreElement.textContent = `Счет: ${score}`;
-    gameOverScreen.classList.add('visible');
+  gameRunning = false;
+  cancelAnimationFrame(animationFrameId);
+  
+  // Показ кнопки "Играть снова"
+  finalScoreElement.textContent = `Счет: ${score}`;
+  gameOverScreen.classList.add('visible');
+  
+  // Отправка результата в Telegram
+  if (window.tg?.sendData) {
+    tg.sendData(JSON.stringify({ score }));
+  }
+}
+
+function resetGame() {
+  // 1. Остановка игры
+  gameRunning = false;
+  cancelAnimationFrame(animationFrameId);
+  
+  // 2. Очистка всех объектов
+  foods = [];
+  happinessStars = [];
+  stars = [];
+  
+  // 3. Сброс параметров
+  score = 10;
+  happiness = 3;
+  
+  // 4. Очистка canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  console.log("Игра полностью сброшена");
+}
+
+function startGame() {
+  // 1. Сброс перед стартом
+  resetGame();
+  
+  // 2. Скрытие меню
+  menuScreen.classList.remove('visible');
+  gameOverScreen.classList.remove('visible');
+  
+  // 3. Инициализация
+  initGame().then(() => {
+    gameRunning = true;
+    initControls();
+    gameLoop();
     
-    if (window.tg?.sendData) {
-        tg.sendData(JSON.stringify({ score }));
-    }
+    // Фокус на canvas для клавиатуры
+    canvas.focus();
+  });
 }
 
 // ===== КЛАССЫ ИГРЫ =====
