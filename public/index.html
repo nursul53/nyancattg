@@ -93,7 +93,48 @@
     </script>
     
     <script src="/game.js" defer></script>
-	<!-- Или если файлы в той же папке -->
-	<script src="./game.js" defer></script>
 </body>
+<script>
+// Проверка инициализации
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log("DOM loaded");
+    
+    // Инициализация Telegram WebApp
+    if (window.Telegram?.WebApp) {
+        try {
+            window.tg = Telegram.WebApp;
+            tg.expand();
+            tg.ready();
+            console.log("Telegram WebApp initialized");
+        } catch (e) {
+            console.warn("Telegram init error:", e);
+        }
+    }
+
+    // Проверка загрузки game.js
+    if (!window.gameJsReady) {
+        console.error("game.js not loaded properly!");
+        // Экстренная загрузка
+        await new Promise(resolve => {
+            const script = document.createElement('script');
+            script.src = '/game.js?' + Date.now();
+            script.onload = resolve;
+            document.body.appendChild(script);
+        });
+    }
+
+    // Проверка изображений
+    const testImages = [
+        '/assets/images/cat/0.png',
+        '/assets/images/good/burger.png'
+    ];
+    
+    testImages.forEach(url => {
+        const img = new Image();
+        img.onload = () => console.log(url, '✅ Loaded');
+        img.onerror = () => console.log(url, '❌ Failed');
+        img.src = url;
+    });
+});
+</script>
 </html>
