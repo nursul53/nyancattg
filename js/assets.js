@@ -18,10 +18,10 @@ export async function loadAssets() {
 
   // Загружаем массив кадров для кота (пример)
   const catFrames = await Promise.all([
-    loadImage('assest/images/0.png'),
-    loadImage('assets/images/1.png'),
-    loadImage('assets/images/2.png'),
-    loadImage('assets/images/3.png'),
+    loadImage('assest/images/cat/0.png'),
+    loadImage('assets/images/cat/1.png'),
+    loadImage('assets/images/cat/2.png'),
+    loadImage('assets/images/cat/3.png'),
   ]);
 
   // Загружаем хорошие и плохие "еды"
