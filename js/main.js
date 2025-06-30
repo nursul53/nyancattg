@@ -2,6 +2,7 @@
 import { initInput, getInputState, setTouchDirection } from "./input.js";
 import { loadAssets } from "./assets.js";
 
+
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
