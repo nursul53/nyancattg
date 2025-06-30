@@ -1,393 +1,237 @@
-// ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
-console.log("game.js started");
-window.gameJsReady = true;
+// main.js — игровая логика и визуал
+import { initInput, getInputState, setTouchDirection } from "./input.js";
+import { loadAssets } from "./assets.js";
 
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-const menuScreen = document.getElementById('menu');
-const gameOverScreen = document.getElementById('game-over');
-const startButton = document.getElementById('startButton');
-const restartButton = document.getElementById('restartButton');
-const finalScoreElement = document.getElementById('final-score');
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-// ===== КОНФИГУРАЦИЯ =====
-const CONFIG = {
-    width: 800,
-    height: 600,
-    catSpeed: 5,
-    foodSpawnRate: 0.02,
-    starCount: 50
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let WIDTH = canvas.width;
+let HEIGHT = canvas.height;
+
+let score = 10;
+let happiness = 3;
+let omnomnometr = [];
+let foodTimer = 0;
+let foods = [];
+let stars = [];
+let happinessStars = [];
+let lastHappinessStar = Date.now();
+let gameOver = false;
+
+let cat = {
+  x: 50,
+  y: HEIGHT / 2,
+  width: 100,
+  height: 64,
+  speed: 5,
+  frameIndex: 0,
+  frameTimer: 0,
+  frameSpeed: 0.2,
 };
 
-// ===== ЗАГРУЗЧИК РЕСУРСОВ =====
-class ResourceLoader {
-    static baseUrl = window.location.origin;
-    
-    static async loadAll() {
-        try {
-            const [catFrames, goodFood, badFood] = await Promise.all([
-                this.loadCatFrames(),
-                this.loadFood('good'),
-                this.loadFood('bad')
-            ]);
-            
-            return { catFrames, goodFood, badFood };
-        } catch (e) {
-            console.error("Resource loading failed:", e);
-            return this.createFallbackAssets();
-        }
-    }
-    
-    static async loadCatFrames() {
-        const frames = [];
-        for (let i = 0; i < 5; i++) {
-            frames.push(await this.loadImage(`/assets/images/cat/${i}.png`, 100, 64, 'pink'));
-        }
-        return frames;
-    }
-    
-    static async loadFood(type) {
-        const items = type === 'good' 
-            ? ['burger', 'fish', 'milk'] 
-            : ['lemon', 'onion', 'pepper'];
-            
-        return Promise.all(
-            items.map(name => 
-                this.loadImage(`/assets/images/${type}/${name}.png`, 48, 48, type === 'good' ? 'green' : 'red')
-            )
-        );
-    }
-    
-    static loadImage(src, width, height, fallbackColor) {
-        return new Promise(resolve => {
-            const img = new Image();
-            img.src = this.baseUrl + src;
-            img.onload = () => resolve(img);
-            img.onerror = () => {
-                console.warn(`Using fallback for ${src}`);
-                resolve(this.createFallbackImage(width, height, fallbackColor));
-            };
-        });
-    }
-    
-    static createFallbackImage(width, height, color) {
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = color;
-        ctx.fillRect(0, 0, width, height);
-        return canvas;
-    }
-    
-    static createFallbackAssets() {
-        return {
-            catFrames: Array(5).fill().map(() => this.createFallbackImage(100, 64, 'pink')),
-            goodFood: Array(3).fill().map(() => this.createFallbackImage(48, 48, 'green')),
-            badFood: Array(3).fill().map(() => this.createFallbackImage(48, 48, 'red'))
-        };
-    }
-}
+let images = {};
+let sounds = {};
 
-// ===== ОСНОВНОЙ КОД ИГРЫ =====
-let assets, cat, foods = [], stars = [], happinessStars = [];
-let score = 10, happiness = 3, gameRunning = false, animationFrameId;
-
-async function initGame() {
-    try {
-        // Загрузка ресурсов
-        assets = await ResourceLoader.loadAll();
-        console.log("Assets loaded:", assets);
-        
-        // Инициализация объектов
-        cat = new Cat(assets.catFrames);
-        stars = Array.from({length: CONFIG.starCount}, () => ({
-            x: Math.random() * canvas.width,
-            y: Math.random() * canvas.height,
-            speed: 1 + Math.random() * 4,
-            size: 1 + Math.random() * 2
-        }));
-        
-        console.log("Game initialized");
-    } catch (e) {
-        console.error("Init error:", e);
-    }
-}
-
-function initControls() {
-  // Очистка старых обработчиков
-  window.removeEventListener('keydown', handleKeyDown);
-  canvas.removeEventListener('touchstart', handleTouchStart);
-  canvas.removeEventListener('touchmove', handleTouchMove);
-
-  // Новые обработчики
-  window.addEventListener('keydown', handleKeyDown);
-  canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
-  canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-  
-  console.log("Контролы инициализированы");
-}
-
-// Обработчики событий
-function handleKeyDown(e) {
-  if (!gameRunning || !cat) return;
-  
-  const speed = cat.speed;
-  switch(e.key) {
-    case 'ArrowUp': case 'w': cat.y = Math.max(0, cat.y - speed); break;
-    case 'ArrowDown': case 's': cat.y = Math.min(canvas.height - cat.height, cat.y + speed); break;
-    case 'ArrowLeft': case 'a': cat.x = Math.max(0, cat.x - speed); break;
-    case 'ArrowRight': case 'd': cat.x = Math.min(canvas.width - cat.width, cat.x + speed); break;
-  }
-}
-
-let touchStartX, touchStartY;
-function handleTouchStart(e) {
-  if (!gameRunning || !cat) return;
-  e.preventDefault();
-  const touch = e.touches[0];
-  touchStartX = touch.clientX;
-  touchStartY = touch.clientY;
-}
-
-function handleTouchMove(e) {
-  if (!gameRunning || !cat) return;
-  e.preventDefault();
-  const touch = e.touches[0];
-  const deltaX = touch.clientX - touchStartX;
-  const deltaY = touch.clientY - touchStartY;
-  
-  cat.x = Math.max(0, Math.min(canvas.width - cat.width, cat.x + deltaX));
-  cat.y = Math.max(0, Math.min(canvas.height - cat.height, cat.y + deltaY));
-  
-  touchStartX = touch.clientX;
-  touchStartY = touch.clientY;
-}
-
-function startGame() {
-  // 1. Сброс перед стартом
-  resetGame();
-  
-  // 2. Скрытие меню
-  menuScreen.classList.remove('visible');
-  gameOverScreen.classList.remove('visible');
-  
-  // 3. Инициализация
-  initGame().then(() => {
-    gameRunning = true;
-    initControls();
-    gameLoop();
-    
-    // Фокус на canvas для клавиатуры
-    canvas.focus();
-  });
-}
-
-function gameLoop() {
-      if (!gameRunning || !cat) {
-    console.warn("Игра не готова:", { gameRunning, cat });
-    return;
-    }
-    if (!gameRunning) return;
-    
-    try {
-        // Очистка экрана
-        ctx.fillStyle = '#0a0a28';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // Отрисовка звезд фона
-        ctx.fillStyle = '#ffffff';
-        stars.forEach(star => {
-            star.x -= star.speed;
-            if (star.x < 0) star.x = canvas.width;
-            ctx.beginPath();
-            ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-            ctx.fill();
-        });
-        
-        // Обновление и отрисовка кота
-        cat.update();
-        cat.draw();
-        
-        // Генерация и отрисовка еды
-        if (Math.random() < CONFIG.foodSpawnRate) {
-            foods.push(new Food(
-                Math.random() > 0.2 ? 'good' : 'bad',
-                assets
-            ));
-        }
-        
-        foods.forEach((food, index) => {
-            food.update();
-            food.draw();
-            
-            if (checkCollision(cat, food)) {
-                if (food.type === 'good') {
-                    score += 1;
-                } else {
-                    score -= 1;
-                    happiness -= 1;
-                }
-                foods.splice(index, 1);
-            }
-            
-            if (food.x < -food.size) {
-                foods.splice(index, 1);
-            }
-        });
-        
-        // Отрисовка интерфейса
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '24px Arial';
-        ctx.fillText(`Счет: ${score}`, 20, 40);
-        ctx.fillText(`Счастье: ${happiness}`, 20, 80);
-        
-        // Проверка конца игры
-        if (score <= 0 || happiness <= 0) {
-            endGame();
-            return;
-        }
-        
-        animationFrameId = requestAnimationFrame(gameLoop);
-    } catch (e) {
-        console.error("Game loop error:", e);
-        endGame();
-    }
-}
-
-function endGame() {
-  gameRunning = false;
-  cancelAnimationFrame(animationFrameId);
-  
-  // Показ кнопки "Играть снова"
-  finalScoreElement.textContent = `Счет: ${score}`;
-  gameOverScreen.classList.add('visible');
-  
-  // Отправка результата в Telegram
-  if (window.tg?.sendData) {
-    tg.sendData(JSON.stringify({ score }));
-  }
-}
-
-function resetGame() {
-  // 1. Остановка игры
-  gameRunning = false;
-  cancelAnimationFrame(animationFrameId);
-  
-  // 2. Очистка всех объектов
-  foods = [];
-  happinessStars = [];
-  stars = [];
-  
-  // 3. Сброс параметров
-  score = 10;
-  happiness = 3;
-  
-  // 4. Очистка canvas
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  
-  console.log("Игра полностью сброшена");
-}
-
-function startGame() {
-  // 1. Сброс перед стартом
-  resetGame();
-  
-  // 2. Скрытие меню
-  menuScreen.classList.remove('visible');
-  gameOverScreen.classList.remove('visible');
-  
-  // 3. Инициализация
-  initGame().then(() => {
-    gameRunning = true;
-    initControls();
-    gameLoop();
-    
-    // Фокус на canvas для клавиатуры
-    canvas.focus();
-  });
-}
-
-// ===== КЛАССЫ ИГРЫ =====
-class Cat {
-    constructor(frames) {
-        this.frames = frames;
-        this.width = 100;
-        this.height = 64;
-        this.x = 50;
-        this.y = canvas.height / 2 - this.height / 2;
-        this.speed = CONFIG.catSpeed;
-        this.frameIndex = 0;
-        this.frameCount = 0;
-    }
-    
-    update() {
-        this.frameCount = (this.frameCount + 1) % 10;
-        if (this.frameCount === 0) {
-            this.frameIndex = (this.frameIndex + 1) % this.frames.length;
-        }
-    }
-    
-    draw() {
-        ctx.drawImage(this.frames[this.frameIndex], this.x, this.y, this.width, this.height);
-    }
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 class Food {
-    constructor(type, assets) {
-        this.type = type;
-        this.size = 48;
-        this.x = canvas.width;
-        this.y = Math.random() * (canvas.height - 100) + 50;
-        this.speed = 4 + score * 0.1;
-        this.image = type === 'good' 
-            ? assets.goodFood[Math.floor(Math.random() * assets.goodFood.length)]
-            : assets.badFood[Math.floor(Math.random() * assets.badFood.length)];
-    }
-    
-    update() {
-        this.x -= this.speed;
-    }
-    
-    draw() {
-        ctx.drawImage(this.image, this.x, this.y, this.size, this.size);
-    }
+  constructor(kind) {
+    this.kind = kind;
+    this.image = kind === 'good' ? images.good[randomInt(0, images.good.length - 1)] : images.bad[randomInt(0, images.bad.length - 1)];
+    this.width = 48;
+    this.height = 48;
+    this.x = WIDTH + 50;
+    this.y = randomInt(50, HEIGHT - 50);
+    this.speed = 4 + score * 0.1;
+  }
+
+  update() {
+    this.x -= this.speed;
+  }
+
+  draw() {
+    ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
+  }
+
+  collidesWith(rect) {
+    return this.x < rect.x + rect.width &&
+           this.x + this.width > rect.x &&
+           this.y < rect.y + rect.height &&
+           this.y + this.height > rect.y;
+  }
 }
 
-// ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
-function checkCollision(obj1, obj2) {
-    return (
-        obj1.x < obj2.x + obj2.size &&
-        obj1.x + obj1.width > obj2.x &&
-        obj1.y < obj2.y + obj2.size &&
-        obj1.y + obj1.height > obj2.y
-    );
+class Star {
+  constructor() {
+    this.x = randomInt(0, WIDTH);
+    this.y = randomInt(0, HEIGHT);
+    this.speed = randomInt(1, 5);
+    this.size = randomInt(1, 2);
+  }
+
+  update() {
+    this.x -= this.speed;
+    if (this.x < 0) {
+      this.x = WIDTH;
+      this.y = randomInt(0, HEIGHT);
+    }
+  }
+
+  draw() {
+    ctx.fillStyle = "white";
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size, 0, 2 * Math.PI);
+    ctx.fill();
+  }
 }
 
-// ===== ИНИЦИАЛИЗАЦИЯ =====
-function setup() {
-    // Настройка canvas
-    canvas.width = CONFIG.width;
-    canvas.height = CONFIG.height;
-    
-    // Обработчики событий
-    startButton.addEventListener('click', startGame);
-    restartButton.addEventListener('click', startGame);
-    
-    // Сенсорное управление
-    canvas.addEventListener('touchstart', handleTouchStart);
-    canvas.addEventListener('touchmove', handleTouchMove);
-    
-    // Загрузка ресурсов
-    initGame().then(() => console.log("Ready!"));
-    
-    // Показать меню
-    menuScreen.classList.add('visible');
+class HappinessStar {
+  constructor() {
+    this.x = WIDTH + 50;
+    this.y = randomInt(50, HEIGHT - 50);
+    this.speed = 7;
+    this.size = 15;
+  }
+
+  update() {
+    this.x -= this.speed;
+  }
+
+  draw() {
+    ctx.fillStyle = "yellow";
+    ctx.beginPath();
+    ctx.arc(this.x + this.size / 2, this.y + this.size / 2, this.size, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.fillStyle = "white";
+    ctx.beginPath();
+    ctx.arc(this.x + this.size / 2, this.y + this.size / 2, this.size / 2, 0, 2 * Math.PI);
+    ctx.fill();
+  }
+
+  collidesWith(rect) {
+    return this.x < rect.x + rect.width &&
+           this.x + this.size > rect.x &&
+           this.y < rect.y + rect.height &&
+           this.y + this.size > rect.y;
+  }
 }
 
-// Запуск при полной загрузке
-if (document.readyState === 'complete') {
-    setup();
-} else {
-    window.addEventListener('load', setup);
+function drawBackground() {
+  ctx.fillStyle = "#0a0a28";
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
 }
+
+function drawCat() {
+  const frame = images.cat[Math.floor(cat.frameIndex) % images.cat.length];
+  ctx.drawImage(frame, cat.x, cat.y, cat.width, cat.height);
+}
+
+function drawUI() {
+  ctx.fillStyle = "white";
+  ctx.font = "24px Arial";
+  ctx.fillText(`Счёт: ${score}`, WIDTH / 2 - 50, 30);
+  ctx.fillText(`Счастье: ${happiness}`, WIDTH - 150, 30);
+
+  for (let i = 0; i < Math.min(omnomnometr.length, 10); i++) {
+    ctx.drawImage(omnomnometr[i], 10 + i * 30, 40, 32, 32);
+  }
+}
+
+function update() {
+  if (gameOver) return;
+
+  const input = getInputState();
+
+  if (input.up && cat.y > 0) cat.y -= cat.speed;
+  if (input.down && cat.y + cat.height < HEIGHT) cat.y += cat.speed;
+  if (input.left && cat.x > 0) cat.x -= cat.speed;
+  if (input.right && cat.x + cat.width < WIDTH) cat.x += cat.speed;
+
+  cat.frameIndex += cat.frameSpeed;
+
+  foodTimer -= 1 / 60;
+  if (foodTimer <= 0) {
+    const kind = Math.random() < 0.7 ? 'good' : 'bad';
+    foods.push(new Food(kind));
+    foodTimer = Math.random() * 0.5 + Math.max(0.2, 2 - score * 0.05);
+  }
+
+  foods.forEach((food, index) => {
+    food.update();
+    if (food.collidesWith(cat)) {
+      if (food.kind === "good") {
+        sounds.eatGood?.play();
+        score++;
+        omnomnometr.push(food.image);
+        if (omnomnometr.length > 10) omnomnometr.shift();
+      } else {
+        sounds.eatBad?.play();
+        score--;
+        happiness--;
+        omnomnometr = [];
+      }
+      foods.splice(index, 1);
+    } else if (food.x < -50) {
+      foods.splice(index, 1);
+    }
+  });
+
+  if (Date.now() - lastHappinessStar > randomInt(20000, 30000)) {
+    happinessStars.push(new HappinessStar());
+    lastHappinessStar = Date.now();
+  }
+
+  happinessStars.forEach((star, index) => {
+    star.update();
+    if (star.collidesWith(cat)) {
+      sounds.star?.play();
+      happiness = Math.min(3, happiness + 1);
+      happinessStars.splice(index, 1);
+    } else if (star.x < -50) {
+      happinessStars.splice(index, 1);
+    }
+  });
+
+  if (score < 1 || happiness <= 0) {
+    gameOver = true;
+    sounds.gameOver?.play();
+  }
+
+  stars.forEach(s => s.update());
+}
+
+function drawStars() {
+  stars.forEach(s => s.draw());
+}
+
+function drawFoods() {
+  foods.forEach(f => f.draw());
+}
+
+function drawHappinessStars() {
+  happinessStars.forEach(s => s.draw());
+}
+
+function gameLoop() {
+  update();
+  drawBackground();
+  drawStars();
+  drawHappinessStars();
+  drawCat();
+  drawFoods();
+  drawUI();
+  requestAnimationFrame(gameLoop);
+}
+
+loadAssets().then((assets) => {
+  images = assets.images;
+  sounds = assets.sounds;
+  for (let i = 0; i < 50; i++) stars.push(new Star());
+  initInput(canvas);
+  gameLoop();
+});
