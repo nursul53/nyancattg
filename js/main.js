@@ -1,5 +1,5 @@
 // main.js — игровая логика и визуал
-import { initInput, getInputState, setTouchDirection } from "./input.js";
+import { initInput, getInputState } from "./input.js";
 import { loadAssets } from "./assets.js";
 
 
