@@ -114,22 +114,74 @@ async function initGame() {
     }
 }
 
+function initControls() {
+  // Очистка старых обработчиков
+  window.removeEventListener('keydown', handleKeyDown);
+  canvas.removeEventListener('touchstart', handleTouchStart);
+  canvas.removeEventListener('touchmove', handleTouchMove);
+
+  // Новые обработчики
+  window.addEventListener('keydown', handleKeyDown);
+  canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+  canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+  
+  console.log("Контролы инициализированы");
+}
+
+// Обработчики событий
+function handleKeyDown(e) {
+  if (!gameRunning || !cat) return;
+  
+  const speed = cat.speed;
+  switch(e.key) {
+    case 'ArrowUp': case 'w': cat.y = Math.max(0, cat.y - speed); break;
+    case 'ArrowDown': case 's': cat.y = Math.min(canvas.height - cat.height, cat.y + speed); break;
+    case 'ArrowLeft': case 'a': cat.x = Math.max(0, cat.x - speed); break;
+    case 'ArrowRight': case 'd': cat.x = Math.min(canvas.width - cat.width, cat.x + speed); break;
+  }
+}
+
+let touchStartX, touchStartY;
+function handleTouchStart(e) {
+  if (!gameRunning || !cat) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+}
+
+function handleTouchMove(e) {
+  if (!gameRunning || !cat) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  const deltaX = touch.clientX - touchStartX;
+  const deltaY = touch.clientY - touchStartY;
+  
+  cat.x = Math.max(0, Math.min(canvas.width - cat.width, cat.x + deltaX));
+  cat.y = Math.max(0, Math.min(canvas.height - cat.height, cat.y + deltaY));
+  
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+}
+
 function startGame() {
-    if (gameRunning) return;
-    
-    menuScreen.classList.remove('visible');
-    gameOverScreen.classList.remove('visible');
+  if (gameRunning) return;
+  
+  menuScreen.classList.remove('visible');
+  gameOverScreen.classList.remove('visible');
+  
+  initGame().then(() => {
     gameRunning = true;
-    
-    if (!assets) {
-        console.warn("Assets not loaded, retrying...");
-        initGame().then(gameLoop);
-    } else {
-        gameLoop();
-    }
+    initControls(); // Инициализируем управление
+    gameLoop();
+  });
 }
 
 function gameLoop() {
+      if (!gameRunning || !cat) {
+    console.warn("Игра не готова:", { gameRunning, cat });
+    return;
+    }
     if (!gameRunning) return;
     
     try {
