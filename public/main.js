@@ -1,4 +1,6 @@
 // Инициализация Telegram WebApp
+console.log("game.js loaded");
+console.log("startGame function exists:", typeof startGame === 'function');
 const tg = window.Telegram.WebApp;
 tg.expand(); // Разворачиваем на весь экран
 
@@ -312,14 +314,13 @@ function gameLoop() {
     animationFrameId = requestAnimationFrame(gameLoop);
 }
 
-async function startGame() {
+function startGame() {
     menuScreen.classList.remove('visible');
     gameOverScreen.classList.remove('visible');
-    await initGame();
+    initGame();
     gameRunning = true;
     gameLoop();
 }
-
 function endGame() {
     gameRunning = false;
     cancelAnimationFrame(animationFrameId);
@@ -387,5 +388,5 @@ canvas.addEventListener('touchmove', (e) => {
     touchStartY = touch.clientY;
 });
 
-// Показываем меню при загрузке
+// Показываем меню при загрузкеsss
 menuScreen.classList.add('visible');
