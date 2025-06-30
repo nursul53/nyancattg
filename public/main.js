@@ -26,9 +26,59 @@ let happiness = 3;
 let gameRunning = false;
 let animationFrameId;
 
+// Загрузчик изображений
+class AssetLoader {
+    static async load() {
+        const assets = {
+            catFrames: [],
+            goodFood: [],
+            badFood: []
+        };
+
+        // Загрузка кадров кота
+        for (let i = 0; i < 5; i++) {
+            assets.catFrames.push(await this.loadImage(`assets/images/cat/${i}.png`));
+        }
+
+        // Загрузка хорошей еды
+        const goodFoods = ['burger', 'fish', 'milk'];
+        for (const food of goodFoods) {
+            assets.goodFood.push(await this.loadImage(`assets/images/good/${food}.png`));
+        }
+
+        // Загрузка плохой еды
+        const badFoods = ['lemon', 'onion', 'pepper'];
+        for (const food of badFoods) {
+            assets.badFood.push(await this.loadImage(`assets/images/bad/${food}.png`));
+        }
+
+        return assets;
+    }
+
+    static loadImage(src) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.src = src;
+            img.onload = () => resolve(img);
+            img.onerror = () => {
+                console.error(`Error loading image: ${src}`);
+                // Создаем запасное изображение
+                const canvas = document.createElement('canvas');
+                canvas.width = 48;
+                canvas.height = 48;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = src.includes('good') ? 'green' : 
+                               src.includes('bad') ? 'red' : 'pink';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                resolve(canvas);
+            };
+        });
+    }
+}
+
 // Класс кота
 class Cat {
-    constructor() {
+    constructor(frames) {
         this.width = 100;
         this.height = 64;
         this.x = 50;
@@ -37,23 +87,7 @@ class Cat {
         this.frameIndex = 0;
         this.frameCount = 0;
         this.frameSpeed = 5;
-        this.frames = []; // Здесь будут кадры анимации
-        this.loadFrames();
-    }
-
-    loadFrames() {
-        // Загрузка кадров анимации (в реальном проекте нужно загружать изображения)
-        for (let i = 0; i < 5; i++) {
-            // В реальном проекте здесь должна быть загрузка изображений
-            // Для примера создаем простые прямоугольники
-            const frameCanvas = document.createElement('canvas');
-            frameCanvas.width = this.width;
-            frameCanvas.height = this.height;
-            const frameCtx = frameCanvas.getContext('2d');
-            frameCtx.fillStyle = '#ff00ff'; // Розовый цвет для кота
-            frameCtx.fillRect(0, 0, this.width, this.height);
-            this.frames.push(frameCanvas);
-        }
+        this.frames = frames;
     }
 
     update() {
@@ -66,7 +100,7 @@ class Cat {
     }
 
     draw() {
-        ctx.drawImage(this.frames[this.frameIndex], this.x, this.y);
+        ctx.drawImage(this.frames[this.frameIndex], this.x, this.y, this.width, this.height);
     }
 
     getRect() {
@@ -81,13 +115,27 @@ class Cat {
 
 // Класс еды
 class Food {
-    constructor() {
+    constructor(goodFoods, badFoods) {
         this.size = 48;
         this.x = canvas.width;
         this.y = Math.random() * (canvas.height - 100) + 50;
         this.speed = 4 + score * 0.1;
         this.type = Math.random() > 0.2 ? 'good' : 'bad';
-        this.color = this.type === 'good' ? '#00ff00' : '#ff0000';
+        
+        if (this.type === 'good' && goodFoods.length > 0) {
+            this.image = goodFoods[Math.floor(Math.random() * goodFoods.length)];
+        } else if (badFoods.length > 0) {
+            this.image = badFoods[Math.floor(Math.random() * badFoods.length)];
+        } else {
+            // Запасной вариант
+            const canvas = document.createElement('canvas');
+            canvas.width = this.size;
+            canvas.height = this.size;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = this.type === 'good' ? 'green' : 'red';
+            ctx.fillRect(0, 0, this.size, this.size);
+            this.image = canvas;
+        }
     }
 
     update() {
@@ -95,8 +143,7 @@ class Food {
     }
 
     draw() {
-        ctx.fillStyle = this.color;
-        ctx.fillRect(this.x, this.y, this.size, this.size);
+        ctx.drawImage(this.image, this.x, this.y, this.size, this.size);
     }
 
     getRect() {
@@ -150,10 +197,13 @@ function checkCollision(rect1, rect2) {
 }
 
 // Инициализация игры
-let cat, foods, stars, happinessStars, lastHappinessStarTime;
+let assets, cat, foods, stars, happinessStars, lastHappinessStarTime;
 
-function initGame() {
-    cat = new Cat();
+async function initGame() {
+    // Загрузка ресурсов
+    assets = await AssetLoader.load();
+    
+    cat = new Cat(assets.catFrames);
     foods = [];
     stars = [];
     happinessStars = [];
@@ -197,12 +247,9 @@ function gameLoop() {
     cat.update();
     cat.draw();
     
-    // Управление котом (упрощенное для мобильных устройств)
-    // В реальном проекте нужно добавить сенсорное управление
-    
     // Генерация еды
     if (Math.random() < 0.02) {
-        foods.push(new Food());
+        foods.push(new Food(assets.goodFood, assets.badFood));
     }
     
     // Обновление и отрисовка еды
@@ -265,10 +312,10 @@ function gameLoop() {
     animationFrameId = requestAnimationFrame(gameLoop);
 }
 
-function startGame() {
+async function startGame() {
     menuScreen.classList.remove('visible');
     gameOverScreen.classList.remove('visible');
-    initGame();
+    await initGame();
     gameRunning = true;
     gameLoop();
 }
