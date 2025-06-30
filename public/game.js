@@ -1,6 +1,12 @@
 // Инициализация Telegram WebApp
 console.log("game.js loaded");
 console.log("startGame function exists:", typeof startGame === 'function');
+console.log("Проверка доступности изображений:");
+['/assets/images/cat/0.png', '/assets/images/good/burger.png'].forEach(url => {
+    fetch(url).then(r => 
+        console.log(url, r.ok ? '✅ Доступно' : '❌ Не найдено')
+    );
+});
 const tg = window.Telegram.WebApp;
 tg.expand(); // Разворачиваем на весь экран
 
