@@ -18,29 +18,29 @@ export async function loadAssets() {
 
   // Загружаем массив кадров для кота (пример)
   const catFrames = await Promise.all([
-    loadImage('/images/cat1.png'),
-    loadImage('/images/cat2.png'),
-    loadImage('/images/cat3.png'),
-    loadImage('/images/cat4.png'),
+    loadImage('assest/images/0.png'),
+    loadImage('assets/images/1.png'),
+    loadImage('assets/images/2.png'),
+    loadImage('assets/images/3.png'),
   ]);
 
   // Загружаем хорошие и плохие "еды"
   const goodFoods = await Promise.all([
-    loadImage('/images/good1.png'),
-    loadImage('/images/good2.png'),
+    loadImage('assets/images/good1.png'),
+    loadImage('assets/images/good2.png'),
   ]);
 
   const badFoods = await Promise.all([
-    loadImage('/images/bad1.png'),
-    loadImage('/images/bad2.png'),
+    loadImage('assets/images/bad1.png'),
+    loadImage('assets/images/bad2.png'),
   ]);
 
   // Звуки (опционально)
   const sounds = {
-    eatGood: await loadAudio('/sounds/eatGood.mp3'),
-    eatBad: await loadAudio('/sounds/eatBad.mp3'),
-    star: await loadAudio('/sounds/star.mp3'),
-    gameOver: await loadAudio('/sounds/gameOver.mp3'),
+    eatGood: await loadAudio('assets/sounds/eatGood.mp3'),
+    eatBad: await loadAudio('assets/sounds/eatBad.mp3'),
+    star: await loadAudio('assets/sounds/star.mp3'),
+    gameOver: await loadAudio('assets/sounds/gameOver.mp3'),
   };
 
   return {
