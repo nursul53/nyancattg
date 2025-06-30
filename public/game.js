@@ -29,10 +29,6 @@ let gameRunning = false;
 let animationFrameId;
 
 // Загрузчик изображений
-// В начале файла добавьте базовый URL
-const BASE_URL = window.location.origin;
-const ASSETS_PATH = '/assets/images';
-
 class AssetLoader {
     static async load() {
         const assets = {
@@ -43,19 +39,19 @@ class AssetLoader {
 
         // Загрузка кадров кота
         for (let i = 0; i < 5; i++) {
-            assets.catFrames.push(await this.loadImage(`${ASSETS_PATH}/cat/${i}.png`));
+            assets.catFrames.push(await this.loadImage(`assets/images/cat/${i}.png`));
         }
 
-        // Загрузка еды
-        const foods = {
-            good: ['burger', 'fish', 'milk'],
-            bad: ['lemon', 'onion', 'pepper']
-        };
+        // Загрузка хорошей еды
+        const goodFoods = ['burger', 'fish', 'milk'];
+        for (const food of goodFoods) {
+            assets.goodFood.push(await this.loadImage(`assets/images/good/${food}.png`));
+        }
 
-        for (const type in foods) {
-            for (const name of foods[type]) {
-                assets[`${type}Food`].push(await this.loadImage(`${ASSETS_PATH}/${type}/${name}.png`));
-            }
+        // Загрузка плохой еды
+        const badFoods = ['lemon', 'onion', 'pepper'];
+        for (const food of badFoods) {
+            assets.badFood.push(await this.loadImage(`assets/images/bad/${food}.png`));
         }
 
         return assets;
@@ -64,20 +60,20 @@ class AssetLoader {
     static loadImage(src) {
         return new Promise((resolve) => {
             const img = new Image();
-            img.src = BASE_URL + src;
+            img.src = src;
+            img.onload = () => resolve(img);
             img.onerror = () => {
-                console.error(`Не удалось загрузить: ${src}`);
-                // Создаем заглушку
+                console.error(`Error loading image: ${src}`);
+                // Создаем запасное изображение
                 const canvas = document.createElement('canvas');
-                canvas.width = type.includes('cat') ? 100 : 48;
-                canvas.height = type.includes('cat') ? 64 : 48;
+                canvas.width = 48;
+                canvas.height = 48;
                 const ctx = canvas.getContext('2d');
-                ctx.fillStyle = type.includes('good') ? 'green' : 
-                               type.includes('bad') ? 'red' : 'pink';
+                ctx.fillStyle = src.includes('good') ? 'green' : 
+                               src.includes('bad') ? 'red' : 'pink';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 resolve(canvas);
             };
-            img.onload = () => resolve(img);
         });
     }
 }
