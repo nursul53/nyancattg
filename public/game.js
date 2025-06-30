@@ -35,72 +35,126 @@ let gameRunning = false;
 let animationFrameId;
 
 // Загрузчик изображений
-class AssetLoader {
-    static async load() {
-        const assets = {
-            catFrames: [],
-            goodFood: [],
-            badFood: []
-        };
-
-        // Добавляем базовый URL
-        const baseUrl = window.location.origin;
-        
-        // Загрузка с обработкой ошибок
-        const load = async (path) => {
-            try {
-                const img = new Image();
-                img.src = baseUrl + path;
-                await new Promise((res, rej) => {
-                    img.onload = res;
-                    img.onerror = rej;
-                });
-                return img;
-            } catch {
-                console.warn(`Создана заглушка для ${path}`);
-                const canvas = document.createElement('canvas');
-                canvas.width = path.includes('cat') ? 100 : 48;
-                canvas.height = path.includes('cat') ? 64 : 48;
-                const ctx = canvas.getContext('2d');
-                ctx.fillStyle = path.includes('good') ? 'green' : 
-                               path.includes('bad') ? 'red' : 'pink';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                return canvas;
-            }
-        };
-
-        // Загрузка кадров кота
+class ResourceLoader {
+    static baseUrl = window.location.origin;
+    
+    static async loadAll() {
+        try {
+            const [catFrames, goodFood, badFood] = await Promise.all([
+                this.loadCatFrames(),
+                this.loadFood('good'),
+                this.loadFood('bad')
+            ]);
+            
+            return { catFrames, goodFood, badFood };
+        } catch (e) {
+            console.error("Resource loading failed:", e);
+            return this.createFallbackAssets();
+        }
+    }
+    
+    static async loadCatFrames() {
+        const frames = [];
         for (let i = 0; i < 5; i++) {
-            assets.catFrames.push(await load('/assets/images/cat/'+i+'.png'));
+            frames.push(await this.loadImage(`/assets/images/cat/${i}.png`, 100, 64, 'pink'));
         }
-
-        // Загрузка еды
-        const foods = {
-            good: ['burger', 'fish', 'milk'],
-            bad: ['lemon', 'onion', 'pepper']
+        return frames;
+    }
+    
+    static async loadFood(type) {
+        const items = type === 'good' 
+            ? ['burger', 'fish', 'milk'] 
+            : ['lemon', 'onion', 'pepper'];
+            
+        return Promise.all(
+            items.map(name => 
+                this.loadImage(`/assets/images/${type}/${name}.png`, 48, 48, type === 'good' ? 'green' : 'red')
+            )
+        );
+    }
+    
+    static loadImage(src, width, height, fallbackColor) {
+        return new Promise(resolve => {
+            const img = new Image();
+            img.src = this.baseUrl + src;
+            img.onload = () => resolve(img);
+            img.onerror = () => {
+                console.warn(`Using fallback for ${src}`);
+                resolve(this.createFallbackImage(width, height, fallbackColor));
+            };
+        });
+    }
+    
+    static createFallbackImage(width, height, color) {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = color;
+        ctx.fillRect(0, 0, width, height);
+        return canvas;
+    }
+    
+    static createFallbackAssets() {
+        return {
+            catFrames: Array(5).fill().map(() => this.createFallbackImage(100, 64, 'pink')),
+            goodFood: Array(3).fill().map(() => this.createFallbackImage(48, 48, 'green')),
+            badFood: Array(3).fill().map(() => this.createFallbackImage(48, 48, 'red'))
         };
+    }
+}
 
-        for (const type in foods) {
-            for (const name of foods[type]) {
-                assets[`${type}Food`].push(await load(`/assets/images/${type}/${name}.png`));
-            }
-        }
+// ===== ОСНОВНОЙ КОД ИГРЫ =====
+let assets, cat, foods = [], stars = [], happinessStars = [];
+let score = 10, happiness = 3, gameRunning = false, animationFrameId;
 
-        return assets;
+async function initGame() {
+    try {
+        // Загрузка ресурсов
+        assets = await ResourceLoader.loadAll();
+        console.log("Assets loaded:", assets);
+        
+        // Инициализация объектов
+        cat = new Cat(assets.catFrames);
+        stars = Array.from({length: CONFIG.starCount}, () => ({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            speed: 1 + Math.random() * 4,
+            size: 1 + Math.random() * 2
+        }));
+        
+        console.log("Game initialized");
+    } catch (e) {
+        console.error("Init error:", e);
+    }
+}
+
+function startGame() {
+    if (gameRunning) return;
+    
+    menuScreen.classList.remove('visible');
+    gameOverScreen.classList.remove('visible');
+    gameRunning = true;
+    
+    if (!assets) {
+        console.warn("Assets not loaded, retrying...");
+        initGame().then(gameLoop);
+    } else {
+        gameLoop();
     }
 }
 
 function gameLoop() {
-    if (!gameRunning || !stars || !foods || !happinessStars) return;
+    if (!gameRunning) return;
     
     try {
         // Очистка экрана
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = '#0a0a28';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Отрисовка с проверками
-        stars && stars.forEach(star => {
+        // Отрисовка звезд фона
+        ctx.fillStyle = '#ffffff';
+        stars.forEach(star => {
             star.x -= star.speed;
             if (star.x < 0) star.x = canvas.width;
             ctx.beginPath();
@@ -108,18 +162,66 @@ function gameLoop() {
             ctx.fill();
         });
         
-        // Аналогично для других элементов...
+        // Обновление и отрисовка кота
+        cat.update();
+        cat.draw();
         
-    } catch (e) {
-        console.error("Ошибка в gameLoop:", e);
-        gameRunning = false;
-    }
-    
-    if (gameRunning) {
+        // Генерация и отрисовка еды
+        if (Math.random() < CONFIG.foodSpawnRate) {
+            foods.push(new Food(
+                Math.random() > 0.2 ? 'good' : 'bad',
+                assets
+            ));
+        }
+        
+        foods.forEach((food, index) => {
+            food.update();
+            food.draw();
+            
+            if (checkCollision(cat, food)) {
+                if (food.type === 'good') {
+                    score += 1;
+                } else {
+                    score -= 1;
+                    happiness -= 1;
+                }
+                foods.splice(index, 1);
+            }
+            
+            if (food.x < -food.size) {
+                foods.splice(index, 1);
+            }
+        });
+        
+        // Отрисовка интерфейса
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '24px Arial';
+        ctx.fillText(`Счет: ${score}`, 20, 40);
+        ctx.fillText(`Счастье: ${happiness}`, 20, 80);
+        
+        // Проверка конца игры
+        if (score <= 0 || happiness <= 0) {
+            endGame();
+            return;
+        }
+        
         animationFrameId = requestAnimationFrame(gameLoop);
+    } catch (e) {
+        console.error("Game loop error:", e);
+        endGame();
     }
 }
 
+function endGame() {
+    gameRunning = false;
+    cancelAnimationFrame(animationFrameId);
+    finalScoreElement.textContent = `Счет: ${score}`;
+    gameOverScreen.classList.add('visible');
+    
+    if (window.tg?.sendData) {
+        tg.sendData(JSON.stringify({ score }));
+    }
+}
 // Класс кота
 class Cat {
     constructor(frames) {
