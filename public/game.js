@@ -43,44 +43,80 @@ class AssetLoader {
             badFood: []
         };
 
+        // Добавляем базовый URL
+        const baseUrl = window.location.origin;
+        
+        // Загрузка с обработкой ошибок
+        const load = async (path) => {
+            try {
+                const img = new Image();
+                img.src = baseUrl + path;
+                await new Promise((res, rej) => {
+                    img.onload = res;
+                    img.onerror = rej;
+                });
+                return img;
+            } catch {
+                console.warn(`Создана заглушка для ${path}`);
+                const canvas = document.createElement('canvas');
+                canvas.width = path.includes('cat') ? 100 : 48;
+                canvas.height = path.includes('cat') ? 64 : 48;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = path.includes('good') ? 'green' : 
+                               path.includes('bad') ? 'red' : 'pink';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                return canvas;
+            }
+        };
+
         // Загрузка кадров кота
         for (let i = 0; i < 5; i++) {
-            assets.catFrames.push(await this.loadImage(`assets/images/cat/${i}.png`));
+            assets.catFrames.push(await load('/assets/images/cat/'+i+'.png'));
         }
 
-        // Загрузка хорошей еды
-        const goodFoods = ['burger', 'fish', 'milk'];
-        for (const food of goodFoods) {
-            assets.goodFood.push(await this.loadImage(`assets/images/good/${food}.png`));
-        }
+        // Загрузка еды
+        const foods = {
+            good: ['burger', 'fish', 'milk'],
+            bad: ['lemon', 'onion', 'pepper']
+        };
 
-        // Загрузка плохой еды
-        const badFoods = ['lemon', 'onion', 'pepper'];
-        for (const food of badFoods) {
-            assets.badFood.push(await this.loadImage(`assets/images/bad/${food}.png`));
+        for (const type in foods) {
+            for (const name of foods[type]) {
+                assets[`${type}Food`].push(await load(`/assets/images/${type}/${name}.png`));
+            }
         }
 
         return assets;
     }
+}
 
-    static loadImage(src) {
-        return new Promise((resolve) => {
-            const img = new Image();
-            img.src = src;
-            img.onload = () => resolve(img);
-            img.onerror = () => {
-                console.error(`Error loading image: ${src}`);
-                // Создаем запасное изображение
-                const canvas = document.createElement('canvas');
-                canvas.width = 48;
-                canvas.height = 48;
-                const ctx = canvas.getContext('2d');
-                ctx.fillStyle = src.includes('good') ? 'green' : 
-                               src.includes('bad') ? 'red' : 'pink';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                resolve(canvas);
-            };
+function gameLoop() {
+    if (!gameRunning || !stars || !foods || !happinessStars) return;
+    
+    try {
+        // Очистка экрана
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#0a0a28';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Отрисовка с проверками
+        stars && stars.forEach(star => {
+            star.x -= star.speed;
+            if (star.x < 0) star.x = canvas.width;
+            ctx.beginPath();
+            ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+            ctx.fill();
         });
+        
+        // Аналогично для других элементов...
+        
+    } catch (e) {
+        console.error("Ошибка в gameLoop:", e);
+        gameRunning = false;
+    }
+    
+    if (gameRunning) {
+        animationFrameId = requestAnimationFrame(gameLoop);
     }
 }
 
